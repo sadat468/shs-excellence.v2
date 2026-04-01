@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHS Excellence | Master Portal</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <style>
+        :root { 
+            --primary: #6366f1; 
+            --gold: #fbbf24; 
+            --bg: #0f172a; 
+            --card: #1e293b; 
+            --success: #22c55e;
+            --border: rgba(255, 255, 255, 0.05);
+        }
+
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: var(--bg); color: white; margin: 0; padding: 0; overflow-x: hidden;
+        }
+
+        /* --- AUTH OVERLAY --- */
+        #screen-auth {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg); z-index: 30000;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .auth-card {
+            width: 85%; max-width: 400px; background: var(--card);
+            padding: 40px 20px; border-radius: 40px; border: 1px solid var(--gold);
+            text-align: center; box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        .auth-input {
+            width: 90%; padding: 18px; margin-bottom: 15px;
+            border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+            background: #0f172a; color: white; font-size: 16px; outline: none;
+        }
+
+        .btn-login {
+            width: 95%; padding: 20px; border-radius: 20px; border: none;
+            background: var(--gold); color: black; font-weight: bold;
+            font-size: 16px; margin-bottom: 15px; cursor: pointer;
+        }
+
+        /* --- DASHBOARD --- */
+        .screen { display: none; min-height: 100vh; width: 100%; }
+        .screen.active { display: block; }
+
+        .user-hero {
+            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            padding: 30px 20px 60px 20px; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px;
+        }
+
+        .header-flex { display: flex; justify-content: space-between; align-items: center; }
+        
+        .score-pill {
+            background: rgba(255,255,255,0.2); padding: 8px 16px;
+            border-radius: 50px; font-weight: bold;
+        }
+
+        .stats-container {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            padding: 0 20px; margin-top: -35px; position: relative; z-index: 10;
+        }
+        .stat-box {
+            background: var(--card); padding: 20px; border-radius: 25px;
+            text-align: center; border: 1px solid var(--border);
+        }
+
+        /* --- SIDE MENU --- */
+        .side-menu { 
+            position: fixed; top: 0; right: -320px; width: 300px; height: 100%; 
+            background: var(--card); z-index: 25000; transition: 0.4s; 
+            padding: 20px; overflow-y: auto;
+        }
+        .side-menu.open { right: 0; }
+        
+        .btn-logout-top {
+            background: #ef4444; color: white; padding: 15px;
+            border-radius: 15px; text-align: center; font-weight: bold;
+            margin-bottom: 20px; cursor: pointer;
+        }
+
+        .app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
+        .app-card {
+            background: var(--card); padding: 25px 15px;
+            border-radius: 30px; text-align: center; border: 1px solid var(--border);
+            cursor: pointer;
+        }
+        .app-card img { width: 50px; height: 50px; margin-bottom: 10px; }
+
+        /* WIDGETS */
+        .widget-box {
+            margin: 0 20px 15px; padding: 15px; background: var(--card);
+            border-radius: 20px; border: 1px solid var(--border);
+        }
+        .leaderboard-card { background: var(--card); margin: 0 20px; padding: 15px; border-radius: 25px; }
+        .rank-item { display: flex; align-items: center; padding: 12px; background: rgba(255,255,255,0.02); border-radius: 15px; margin-bottom: 8px; }
+
+        /* POMODORO TIMER */
+        #pomo-display { font-size: 32px; font-weight: 900; color: var(--gold); margin: 10px 0; }
+        .pomo-btn { background: var(--primary); border: none; color: white; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+
+        /* QUIZ */
+        .option-btn {
+            width: 100%; padding: 18px; margin-bottom: 12px; border-radius: 15px;
+            background: #0f172a; border: 1px solid var(--border); color: white; text-align: left;
+        }
+        
+        /* CHAT STYLE */
+        .chat-bubble {
+            background: rgba(255,255,255,0.05); 
+            padding: 12px; 
+            border-radius: 18px; 
+            border-bottom-left-radius: 2px;
+            margin-bottom: 5px;
+            max-width: 85%;
+        }
+        .chat-name { font-size: 10px; color: var(--gold); font-weight: bold; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="screen-auth">
+        <div class="auth-card">
+            <div style="font-size: 60px;">🎓</div>
+            <h1 style="color:var(--gold); margin: 10px 0;">EXCELLENCE</h1>
+            <input type="text" id="auth-name" class="auth-input" placeholder="Full Name">
+            <input type="password" id="auth-pass" class="auth-input" placeholder="Password">
+            <button onclick="handleLogin()" class="btn-login">SIGN IN</button>
+            <button onclick="handleSignUp()" style="background:transparent; border:1px solid var(--gold); color:var(--gold); width:95%; padding:15px; border-radius:20px; font-weight:bold; cursor:pointer;">REGISTER</button>
+        </div>
+    </div>
+
+    <div id="side-menu" class="side-menu">
+        <div class="btn-logout-top" onclick="location.reload()">LOG OUT 🔌</div>
+        <div onclick="toggleMenu(false)" style="text-align:right; font-size:28px; cursor:pointer;">✕</div>
+        <h2 style="color:var(--gold);">2025/26 Calendar</h2>
+        <div style="font-size:12px; opacity:0.7;">Term 1: Sept 9 | Xmas: Dec 18<br>Term 2: Jan 13 | Easter: Apr 9<br>Term 3: May 5 | WASSCE: Aug</div>
+        <hr style="opacity:0.1; margin:20px 0;">
+        <a href="https://www.instagram.com/sadat.yuba?igsh=YnpzcGR3NTV1bW8=" target="_blank" style="text-decoration:none; color:white; background:rgba(255,255,255,0.05); padding:15px; border-radius:15px; display:block; text-align:center;">📸 Instagram Support</a>
+    </div>
+
+    <div id="screen-dash" class="screen">
+        <div class="user-hero">
+            <div class="header-flex">
+                <div>
+                    <h2 style="margin:0">Hello, <span id="display-name">Student</span>!</h2>
+                    <div style="font-size: 11px; opacity: 0.8;" id="wassce-timer">Loading...</div>
+                </div>
+                <div style="display:flex; gap:12px; align-items:center;">
+                    <div class="score-pill">🏆 <span id="display-score">0</span></div>
+                    <div style="font-size:32px; cursor:pointer;" onclick="toggleMenu(true)">☰</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-box">
+                <small style="color: #94a3b8; font-size: 10px; font-weight: bold;">MY RANK</small>
+                <div id="display-rank" style="font-size:24px; font-weight:bold; color:var(--gold);">#--</div>
+            </div>
+            <div class="stat-box">
+                <small style="color: #94a3b8; font-size: 10px; font-weight: bold;">STUDY GOAL</small>
+                <div id="daily-perc" style="font-size:24px; font-weight:bold; color:var(--success);">0%</div>
+            </div>
+        </div>
+
+        <div id="weekly-box" class="widget-box" style="margin-top:20px; border-left:5px solid var(--gold); display: none;">
+            <div style="font-size:10px; font-weight:bold; color:var(--gold); margin-bottom:5px;">🔥 WEEKLY CHALLENGE (+50 PTS)</div>
+            <div style="font-size:14px;" id="weekly-q">Which organ removes waste from the blood?</div>
+            <div style="margin-top:10px; display:flex; gap:10px;">
+                <button onclick="checkWeekly('Kidney')" class="pomo-btn" style="padding:5px 10px; font-size:12px;">KIDNEY</button>
+                <button onclick="checkWeekly('Heart')" class="pomo-btn" style="padding:5px 10px; font-size:12px; background:transparent; border:1px solid #444;">HEART</button>
+            </div>
+        </div>
+
+        <div class="widget-box" style="text-align:center;">
+            <div style="font-size:10px; font-weight:bold; color:var(--primary);">FOCUS TIMER (POMODORO)</div>
+            <div id="pomo-display">25:00</div>
+            <button id="pomo-start" class="pomo-btn" onclick="togglePomo()">START STUDY SESSION</button>
+        </div>
+
+        <div class="app-grid">
+            <div class="app-card" onclick="nav('quiz-menu')"><img src="https://cdn-icons-png.flaticon.com/512/5692/5692030.png"><br><b>Hard Quiz</b></div>
+            <div class="app-card" onclick="nav('library')"><img src="https://cdn-icons-png.flaticon.com/512/2232/2232688.png"><br><b>Library</b></div>
+            <div class="app-card" onclick="nav('community')"><img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"><br><b>Community</b></div>
+            <div class="app-card" onclick="nav('past-qs')"><img src="https://cdn-icons-png.flaticon.com/512/2991/2991112.png"><br><b>Past Qs</b></div>
+        </div>
+
+        <div class="leaderboard-card" id="leader-ui"></div>
+    </div>
+
+    <div id="screen-quiz-menu" class="screen">
+        <div style="padding:20px; color:var(--gold); font-weight:bold;" onclick="nav('dash')">← Back</div>
+        <div style="padding:20px;">
+            <h2 style="color:var(--gold);">Choose Subject</h2>
+            <div class="app-card" style="width:100%; margin-bottom:15px;" onclick="startQuiz('English')">English Language</div>
+            <div class="app-card" style="width:100%; margin-bottom:15px;" onclick="startQuiz('Science')">Integrated Science</div>
+            <div class="app-card" style="width:100%; margin-bottom:15px;" onclick="startQuiz('Social')">Social Studies</div>
+        </div>
+    </div>
+
+    <div id="screen-quiz-play" class="screen">
+        <div style="padding:20px; color:var(--gold); font-weight:bold;" onclick="nav('quiz-menu')">← Quit</div>
+        <div style="padding:20px;">
+            <div style="background:var(--card); padding:30px; border-radius:30px; border:1px solid var(--border);">
+                <div id="q-text" style="font-size:18px;">Question...</div>
+                <div id="q-options" style="margin-top:20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-community" class="screen">
+        <div style="padding:20px; color:var(--gold); font-weight:bold;" onclick="nav('dash')">← Back</div>
+        <div id="chat-box" style="height:62vh; overflow-y:auto; padding:20px; display:flex; flex-direction:column;"></div>
+        
+        <div style="position: sticky; bottom: 0; padding:15px; background:var(--bg); display:flex; gap:10px; border-top:1px solid var(--border);">
+            <input type="text" id="chat-input" class="auth-input" style="flex:1; margin-bottom:0;" placeholder="Type a message...">
+            <button onclick="sendMsg()" style="background:var(--gold); border:none; padding:15px; border-radius:15px; font-weight:bold; width: 80px;">SEND</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyBBKlF-FLafrkBAVaidnwMAiUM3LftVun8", authDomain: "shs-excellence-portal.firebaseapp.com", projectId: "shs-excellence-portal", storageBucket: "shs-excellence-portal.appspot.com", messagingSenderId: "649174593430", appId: "1:649174593430:web:4d133798067d9ad94137b7" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let user = null;
+
+        const correctSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3');
+        const wrongSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3');
+
+        // --- POMODORO ---
+        let pomoTime = 25 * 60; let pomoInterval = null;
+        function togglePomo() {
+            const btn = document.getElementById('pomo-start');
+            if(pomoInterval) { clearInterval(pomoInterval); pomoInterval = null; btn.innerText = "RESUME STUDY"; } 
+            else {
+                btn.innerText = "FOCUSING... (PAUSE)";
+                pomoInterval = setInterval(() => {
+                    pomoTime--;
+                    let m = Math.floor(pomoTime/60); let s = pomoTime%60;
+                    document.getElementById('pomo-display').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+                    if(pomoTime <= 0) { clearInterval(pomoInterval); alert("Success! +10 Pts"); updateScore(10); pomoTime = 25*60; document.getElementById('pomo-display').innerText="25:00"; }
+                }, 1000);
+            }
+        }
+
+        async function updateScore(pts) {
+            user.score += pts;
+            await db.collection("students").doc(user.name).update({score: user.score});
+            document.getElementById('display-score').innerText = user.score;
+        }
+
+        async function checkWeekly(ans) {
+            if(ans === 'Kidney') { correctSound.play(); updateScore(50); alert("Correct! +50 Points."); } 
+            else { wrongSound.play(); alert("Incorrect!"); }
+            await db.collection("students").doc(user.name).update({ lastWeekly: new Date().getTime() });
+            document.getElementById('weekly-box').style.display = 'none';
+        }
+
+        // --- QUIZ ---
+        const rawQuiz = {
+            English: [
+                {q:"Synonym of 'Abundant'?", a:["Scarce","Plentiful","Small","Rare"], c:1},
+                {q:"Identify Verb: 'He plays.'", a:["He","Plays","In","The"], c:1},
+                {q:"Antonym of 'Beautiful'?", a:["Pretty","Ugly","Nice","Smart"], c:1},
+                {q:"Past tense of 'Run'?", a:["Runned","Ran","Running","Runs"], c:1},
+                {q:"She ____ her homework yesterday.", a:["do","did","done","doing"], c:1}
+            ],
+            Science: [
+                {q:"H2O is the symbol for?", a:["Air","Water","Salt","Iron"], c:1},
+                {q:"The sun is a?", a:["Planet","Star","Moon","Galaxy"], c:1},
+                {q:"Gas for breathing?", a:["Nitrogen","Oxygen","Hydrogen","Argon"], c:1},
+                {q:"Unit of current?", a:["Volt","Ampere","Ohm","Watt"], c:1},
+                {q:"Powerhouse of cell?", a:["Nucleus","Mitochondria","Ribosome","Wall"], c:1}
+            ],
+            Social: [
+                {q:"Capital of Ghana?", a:["Accra","Kumasi","Tamale","Ho"], c:0},
+                {q:"Independence year?", a:["1957","1960","1966","1992"], c:0},
+                {q:"First President?", a:["Rawlings","Nkrumah","Kufuor","Busia"], c:1},
+                {q:"Main export of Ghana?", a:["Cocoa","Oil","Rice","Clothes"], c:0},
+                {q:"River Pra is in which country?", a:["Togo","Ghana","Nigeria","Benin"], c:1}
+            ]
+        };
+
+        function nav(t) {
+            if(t==='library') return window.open('https://drive.google.com/drive/folders/1tkAw0HCGgdcysoKcl_eiOp4Z_eEAuC-f');
+            if(t==='past-qs') return window.open('https://drive.google.com/drive/folders/1Sba7FUe-0DE_PpydwAaCrhKP_fXmUNA3');
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('screen-'+t).classList.add('active');
+            if(t==='community') loadMessages();
+            toggleMenu(false);
+        }
+
+        function toggleMenu(s) { document.getElementById('side-menu').classList.toggle('open', s); }
+
+        async function handleLogin() {
+            const n = document.getElementById('auth-name').value;
+            const p = document.getElementById('auth-pass').value;
+            const doc = await db.collection("students").doc(n).get();
+            if(doc.exists && doc.data().password === p) { user = doc.data(); entry(); } else alert("Access Error");
+        }
+
+        async function handleSignUp() {
+            const n = document.getElementById('auth-name').value;
+            const p = document.getElementById('auth-pass').value;
+            user = { name: n, password: p, score: 0, lastWeekly: 0 };
+            await db.collection("students").doc(n).set(user);
+            entry();
+        }
+
+        function entry() {
+            document.getElementById('display-name').innerText = user.name;
+            document.getElementById('display-score').innerText = user.score;
+            document.getElementById('screen-auth').style.display = 'none';
+            nav('dash'); syncLeader(); countdown();
+            if(!user.lastWeekly || (new Date().getTime() - user.lastWeekly > 604800000)) document.getElementById('weekly-box').style.display='block';
+        }
+
+        function startQuiz(s) {
+            const shuffled = rawQuiz[s].sort(() => 0.5 - Math.random());
+            currentSet = shuffled.slice(0, 5); qIdx = 0; nav('quiz-play'); showQ();
+        }
+
+        function showQ() {
+            const item = currentSet[qIdx];
+            document.getElementById('q-text').innerText = item.q;
+            const optDiv = document.getElementById('q-options'); optDiv.innerHTML = "";
+            item.a.forEach((txt, i) => optDiv.innerHTML += `<button class="option-btn" onclick="ans(${i})">${txt}</button>`);
+        }
+
+        function ans(i) {
+            if(i === currentSet[qIdx].c) { correctSound.play(); updateScore(20); } else { wrongSound.play(); }
+            qIdx++; if(qIdx < 5) showQ(); else nav('dash');
+        }
+
+        function syncLeader() {
+            db.collection("students").orderBy("score", "desc").limit(3).onSnapshot(s => {
+                const ui = document.getElementById('leader-ui'); ui.innerHTML = "";
+                let i = 1;
+                s.forEach(doc => {
+                    const d = doc.data();
+                    if(user && d.name === user.name) document.getElementById('display-rank').innerText="#"+i;
+                    ui.innerHTML += `<div class="rank-item"><b>#${i}</b><span style="margin-left:15px;">${d.name}</span><span style="margin-left:auto; color:var(--gold)">${d.score}</span></div>`;
+                    i++;
+                });
+            });
+        }
+
+        function countdown() {
+            const target = new Date("August 1, 2026").getTime();
+            setInterval(() => {
+                const d = Math.floor((target - new Date().getTime())/(1000*60*60*24));
+                document.getElementById('wassce-timer').innerText = d + " Days to WASSCE";
+            }, 1000);
+        }
+
+        // --- FIXED COMMUNITY LOGIC ---
+        function loadMessages() {
+            db.collection("messages").orderBy("time", "asc").limitToLast(20).onSnapshot(s => {
+                const b = document.getElementById('chat-box'); 
+                b.innerHTML = "";
+                s.forEach(m => {
+                    const d = m.data();
+                    const bubble = document.createElement('div');
+                    bubble.className = "chat-bubble";
+                    bubble.innerHTML = `<div class="chat-name">${d.user}</div><div>${d.text}</div>`;
+                    b.appendChild(bubble);
+                });
+                b.scrollTop = b.scrollHeight; // Auto scroll to bottom
+            });
+        }
+
+        async function sendMsg() {
+            const i = document.getElementById('chat-input'); 
+            if(!i.value.trim()) return;
+            const msg = { user: user.name, text: i.value, time: Date.now() };
+            await db.collection("messages").add(msg); 
+            i.value = "";
+        }
+    </script>
+</body>
+</html>
